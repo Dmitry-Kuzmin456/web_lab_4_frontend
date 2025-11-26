@@ -1,7 +1,9 @@
+<script setup>
+// тут пусто или импорты компонентов
+</script>
+
 <template>
   <router-view></router-view>
 </template>
 
-<style>
-@import './assets/style.css';
-</style>
+<!-- Удали блок <style> с импортом отсюда вообще -->
