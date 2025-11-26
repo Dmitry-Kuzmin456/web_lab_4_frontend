@@ -1,0 +1,73 @@
+/* Вставьте сюда ВЕСЬ код из вашего запроса, начиная с body { ... } */
+/* ... ваш старый CSS ... */
+
+/* ДОБАВЛЕНИЯ ДЛЯ ЛАБЫ 4 (Адаптивность) */
+
+/* Десктоп (уже по умолчанию стиль похож, но уточним ширину) */
+@media (min-width: 1218px) {
+    header, main {
+        max-width: 1200px;
+    }
+}
+
+/* Планшет */
+@media (min-width: 672px) and (max-width: 1217px) {
+    header, main {
+        width: 95%;
+    }
+    .input-panel, .graph-panel {
+        display: block;
+        width: 100%;
+    }
+    .input-panel {
+        padding-right: 0;
+        margin-bottom: 20px;
+    }
+    .canvas-container {
+        margin: 0 auto;
+    }
+    .header-table td {
+        display: block;
+        width: 100%;
+    }
+    .duck {
+        display: none; /* Убираем уток на планшете чтобы не мешали */
+    }
+}
+
+/* Мобильный */
+@media (max-width: 671px) {
+    header, main {
+        width: 100%;
+        margin: 5px 0;
+        border: none;
+        border-radius: 0;
+    }
+
+    .header-table, .header-table tbody, .header-table tr, .header-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .duck { display: none; }
+
+    .input-panel, .graph-panel {
+        display: block;
+        width: 100%;
+        padding: 0;
+    }
+
+    .canvas-container {
+        width: 300px; /* Уменьшаем график */
+        height: 300px;
+    }
+
+    #graph-canvas, #points-canvas {
+        width: 300px !important;
+        height: 300px !important;
+    }
+
+    .results-table {
+        font-size: 12px;
+    }
+}
