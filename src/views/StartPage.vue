@@ -2,9 +2,23 @@
   <div>
     <header>
       <h1>Лабораторная работа #4</h1>
-      <div style="text-align: center">
-        <p>Кузьмин Дмитрий Анатольевич | P3209 | Вариант 478</p>
-      </div>
+      <table class="header-table">
+        <tr>
+          <td class="left">
+            <img :src="duck2" class="duck" alt="duck left"/>
+          </td>
+
+          <td>
+            <p>Выполнил: Кузьмин Дмитрий Анатольевич</p>
+            <p>Группа: P3209</p>
+            <p>Номер варианта: 478</p>
+          </td>
+
+          <td class="right">
+            <img :src="duck1" class="duck" alt="duck right"/>
+          </td>
+        </tr>
+      </table>
     </header>
 
     <main class="start-page-main">
@@ -32,6 +46,9 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 
+import duck1 from '../assets/img/duck_without_background_1.png';
+import duck2 from '../assets/img/duck_without_background_2.png';
+
 const username = ref('');
 const password = ref('');
 const error = ref('');
@@ -41,14 +58,11 @@ const api = axios.create({ baseURL: 'http://localhost:8080/api/auth' });
 
 const login = async () => {
   try {
-    // Внимание: отправляем пароль как есть, бэк его проверит
-    // Но для Basic Auth нам нужно сформировать токен
-    const res = await api.post('/login', { username: username.value, password: password.value });
+    await api.post('/login', { username: username.value, password: password.value });
 
-    // Сохраняем токен (base64) в localStorage
-    // Примечание: сервер возвращает токен, который мы закодировали в контроллере
-    // Но лучше сформировать Basic заголовок вручную на клиенте:
-    const token = btoa(username.value + ":" + password.value);
+    const credentials = username.value + ":" + password.value;
+    const token = btoa(unescape(encodeURIComponent(credentials)));
+
     localStorage.setItem('auth_token', token);
     localStorage.setItem('username', username.value);
 
@@ -63,7 +77,11 @@ const register = async () => {
     await api.post('/register', { username: username.value, password: password.value });
     alert("Регистрация успешна! Теперь войдите.");
   } catch (e) {
-    error.value = "Ошибка регистрации (возможно, логин занят)";
+    if (e.response && e.response.status === 400) {
+      error.value = "Пользователь с таким именем уже существует";
+    } else {
+      error.value = "Ошибка регистрации";
+    }
   }
 };
 </script>

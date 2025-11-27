@@ -2,33 +2,48 @@
   <div>
     <header>
       <h1>Лабораторная работа #4</h1>
-      <div style="text-align:center">
-        <span>Пользователь: {{ user }}</span>
-        <button @click="logout" class="x-button" style="float: right">Выход</button>
-      </div>
+      <table class="header-table">
+        <tr>
+          <td class="left">
+            <img :src="duck2" class="duck" alt="duck left"/>
+          </td>
+
+          <td>
+            <p>Выполнил: Кузьмин Дмитрий Анатольевич</p>
+            <p>Группа: P3209</p>
+            <p>Номер варианта: 478</p>
+
+            <div style="margin-top: 15px; border-top: 1px solid #d9a066; padding-top: 10px;">
+              <span>Пользователь: <strong>{{ user }}</strong></span>
+              <br>
+              <button @click="logout" class="x-button" style="margin-top: 10px;">Выход</button>
+            </div>
+          </td>
+
+          <td class="right">
+            <img :src="duck1" class="duck" alt="duck right"/>
+          </td>
+        </tr>
+      </table>
     </header>
 
     <main>
       <table class="layout-table">
         <tr>
-          <!-- Панель ввода -->
           <td class="input-panel">
             <div class="input_section">
-              <!-- X Input (Text) -->
               <div class="form-row">
                 <span class="form-label">X:</span>
                 <input type="text" v-model="x" class="y-text-input" placeholder="-3 ... 5" @input="validateX">
                 <span v-if="errors.x" class="error-messages" style="font-size: 12px; margin-left: 10px">{{ errors.x }}</span>
               </div>
 
-              <!-- Y Input (Text) -->
               <div class="form-row">
                 <span class="form-label">Y:</span>
                 <input type="text" v-model="y" class="y-text-input" placeholder="-5 ... 3" @input="validateY">
                 <span v-if="errors.y" class="error-messages" style="font-size: 12px; margin-left: 10px">{{ errors.y }}</span>
               </div>
 
-              <!-- R Input (Text) -->
               <div class="form-row">
                 <span class="form-label">R:</span>
                 <input type="text" v-model="r" class="y-text-input" placeholder="-3 ... 5" @input="validateR">
@@ -41,7 +56,6 @@
             </div>
           </td>
 
-          <!-- График -->
           <td class="graph-panel">
             <div class="canvas-container" @click="handleGraphClick">
               <canvas ref="graphCanvas" width="400" height="400" id="graph-canvas"></canvas>
@@ -50,7 +64,6 @@
         </tr>
       </table>
 
-      <!-- Таблица результатов -->
       <section class="results_section">
         <div class="table-container">
           <table class="results-table">
@@ -80,9 +93,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
+
+import duck1 from '../assets/img/duck_without_background_1.png';
+import duck2 from '../assets/img/duck_without_background_2.png';
 
 const router = useRouter();
 const user = localStorage.getItem('username');
@@ -99,7 +115,6 @@ const api = axios.create({
   headers: { 'Authorization': 'Basic ' + localStorage.getItem('auth_token') }
 });
 
-// Валидация
 const validateNumber = (val, min, max) => {
   const num = parseFloat(val.replace(',', '.'));
   if (isNaN(num)) return "Не число";
@@ -109,18 +124,17 @@ const validateNumber = (val, min, max) => {
 
 const validateX = () => errors.value.x = validateNumber(x.value, -3, 5);
 const validateY = () => errors.value.y = validateNumber(y.value, -5, 3);
-// Для R: несмотря на диапазон -3...5, радиус для отрисовки должен быть > 0
 const validateR = () => {
   errors.value.r = validateNumber(r.value, -3, 5);
-  if (!errors.value.r && parseFloat(r.value) <= 0) errors.value.r = "R должен быть > 0";
-  drawGraph(); // Перерисовка при изменении R
+  if (!errors.value.r && parseFloat(r.value) <= 0) {
+  }
+  drawGraph();
 };
 
 const isValid = computed(() => {
   return !errors.value.x && !errors.value.y && !errors.value.r && x.value && y.value && r.value;
 });
 
-// Загрузка данных
 const loadPoints = async () => {
   try {
     const res = await api.get('');
@@ -151,61 +165,60 @@ const logout = () => {
   router.push('/');
 };
 
-// --- Логика Графика ---
 const drawGraph = () => {
   const canvas = graphCanvas.value;
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const width = canvas.width;
   const height = canvas.height;
-  const R = parseFloat(r.value.replace(',', '.'));
+  const R_val = parseFloat(r.value.replace(',', '.'));
 
-  // Очистка
+  const validR = !isNaN(R_val) && R_val > 0;
+
   ctx.clearRect(0, 0, width, height);
 
-  // Отрисовка фигуры (если R задан корректно)
-  if (R > 0) {
-    ctx.fillStyle = '#4169E1'; // Цвет области (примерно синий)
+  if (validR) {
+    ctx.fillStyle = '#4169E1';
     ctx.globalAlpha = 0.5;
 
-    // ВНИМАНИЕ: Здесь рисуем фигуры для Варианта 478
-    // Это ЗАГЛУШКА, нужно подставить правильные фигуры!
-    const scale = (width / 2) / 6; // Масштаб (чтобы R=5 влезало)
-    const rPx = R * scale;
+    const scale = (width / 2) / 6;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const rPx = R_val * scale;
+    const rHalfPx = (R_val / 2) * scale;
+
+    ctx.fillRect(centerX - rPx, centerY - rHalfPx, rPx, rHalfPx);
 
     ctx.beginPath();
-    // Пример: Прямоугольник в 1 четверти
-    ctx.fillRect(width/2, height/2 - rPx/2, rPx, rPx/2);
-
-    // Пример: Треугольник во 2 четверти
-    ctx.moveTo(width/2, height/2);
-    ctx.lineTo(width/2 - rPx, height/2);
-    ctx.lineTo(width/2, height/2 - rPx);
+    ctx.moveTo(centerX, centerY);
+    ctx.lineTo(centerX - rPx, centerY);
+    ctx.lineTo(centerX, centerY + rPx);
+    ctx.closePath();
     ctx.fill();
 
-    // Пример: Сектор в 4 четверти
+
     ctx.beginPath();
-    ctx.moveTo(width/2, height/2);
-    ctx.arc(width/2, height/2, rPx/2, 0, Math.PI/2);
+    ctx.moveTo(centerX, centerY);
+    ctx.arc(centerX, centerY, rHalfPx, 0, Math.PI / 2, false);
+    ctx.closePath();
     ctx.fill();
 
     ctx.globalAlpha = 1.0;
   }
 
-  // Оси
   ctx.strokeStyle = '#000';
   ctx.beginPath();
   ctx.moveTo(0, height/2); ctx.lineTo(width, height/2); // X
   ctx.moveTo(width/2, 0); ctx.lineTo(width/2, height); // Y
   ctx.stroke();
 
-  // Точки
+  ctx.font = "12px Arial";
+  ctx.fillStyle = "black";
+  ctx.fillText("X", width - 10, height/2 - 5);
+  ctx.fillText("Y", width/2 + 5, 10);
+
   points.value.forEach(p => {
-    // Чтобы отобразить старые точки, нам нужен ТЕКУЩИЙ R для масштаба?
-    // Обычно в лабах просят рисовать точки относительно текущего R или в абсолютных координатах.
-    // Если R не задан, используем масштаб по умолчанию (например R=5)
-    const curR = R > 0 ? R : 5;
-    const scale = (width / 2) / 6; // Фиксированный масштаб координатной плоскости (до 6 единиц)
+    const scale = (width / 2) / 6;
 
     const pX = width/2 + p.x * scale;
     const pY = height/2 - p.y * scale;
@@ -232,15 +245,15 @@ const handleGraphClick = async (event) => {
   const height = graphCanvas.value.height;
   const scale = (width / 2) / 6;
 
-  // Перевод из пикселей в координаты
   let graphX = (clickX - width/2) / scale;
   let graphY = (height/2 - clickY) / scale;
 
-  // Округление для красоты
+  graphX = Math.min(5, Math.max(-3, graphX));
+  graphY = Math.min(3, Math.max(-5, graphY));
+
   graphX = graphX.toFixed(2);
   graphY = graphY.toFixed(2);
 
-  // Отправка
   try {
     const res = await api.post('', {
       x: parseFloat(graphX),

@@ -1,4 +1,4 @@
-import './assets/style.css' // <--- ГЛАВНАЯ СТРОЧКА. Вставь её первой.
+import './assets/style.css'
 
 import { createApp } from 'vue'
 import App from './App.vue'
