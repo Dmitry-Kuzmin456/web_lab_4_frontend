@@ -220,8 +220,10 @@ const drawGraph = () => {
   points.value.forEach(p => {
     const scale = (width / 2) / 6;
 
-    const pX = width/2 + p.x * scale;
-    const pY = height/2 - p.y * scale;
+    const clampedX = Math.min(5, Math.max(-3, p.x));
+    const clampedY = Math.min(3, Math.max(-5, p.y));
+    const pX = width/2 + clampedX * scale;
+    const pY = height/2 - clampedY * scale;
 
     ctx.fillStyle = p.result ? '#28a745' : '#dc3545';
     ctx.beginPath();
