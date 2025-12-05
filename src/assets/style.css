@@ -452,3 +452,20 @@ header h1 {
         font-size: 12px;
     }
 }
+
+.google-btn {
+    display: block;
+    width: 100%;
+    text-align: center;
+    padding: 10px;
+    background-color: #db4437;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    font-weight: bold;
+    transition: background 0.3s;
+}
+
+.google-btn:hover {
+    background-color: #c53929;
+}

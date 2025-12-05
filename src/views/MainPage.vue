@@ -3,6 +3,7 @@
     <header>
       <h1>Лабораторная работа #4</h1>
       <table class="header-table">
+        <tbody>
         <tr>
           <td class="left">
             <img :src="duck2" class="duck" alt="duck left"/>
@@ -24,11 +25,13 @@
             <img :src="duck1" class="duck" alt="duck right"/>
           </td>
         </tr>
+        </tbody>
       </table>
     </header>
 
     <main>
       <table class="layout-table">
+        <tbody>
         <tr>
           <td class="input-panel">
             <div class="input_section">
@@ -62,6 +65,7 @@
             </div>
           </td>
         </tr>
+        </tbody>
       </table>
 
       <section class="results_section">
@@ -77,7 +81,7 @@
             </tr>
             </thead>
             <tbody>
-            <tr v-for="p in points" :key="p.id">
+            <tr v-for="p in points" :key="p.externalId || p.id">
               <td>{{ p.x }}</td>
               <td>{{ p.y }}</td>
               <td>{{ p.r }}</td>
@@ -96,12 +100,15 @@
 import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
+import { v4 as uuidv4 } from 'uuid';
+import { savePointLocal, getAllPointsLocal, saveAllPointsLocal, incLamport, clearLocalDB } from '../services/db';
 
 import duck1 from '../assets/img/duck_without_background_1.png';
 import duck2 from '../assets/img/duck_without_background_2.png';
 
 const router = useRouter();
 const user = localStorage.getItem('username');
+const nodeId = uuidv4();
 
 const x = ref('');
 const y = ref('');
@@ -109,6 +116,8 @@ const r = ref('');
 const points = ref([]);
 const errors = ref({ x: '', y: '', r: '' });
 const graphCanvas = ref(null);
+
+const isOffline = ref(!navigator.onLine);
 
 const api = axios.create({
   baseURL: 'http://localhost:8080/api/points',
@@ -126,8 +135,6 @@ const validateX = () => errors.value.x = validateNumber(x.value, -3, 5);
 const validateY = () => errors.value.y = validateNumber(y.value, -5, 3);
 const validateR = () => {
   errors.value.r = validateNumber(r.value, -3, 5);
-  if (!errors.value.r && parseFloat(r.value) <= 0) {
-  }
   drawGraph();
 };
 
@@ -135,33 +142,129 @@ const isValid = computed(() => {
   return !errors.value.x && !errors.value.y && !errors.value.r && x.value && y.value && r.value;
 });
 
-const loadPoints = async () => {
+const checkAreaClient = (x, y, r) => {
+  if (r <= 0) return false;
+  // 1. Прямоугольник (2 четверть)
+  if (x <= 0 && x >= -r && y >= 0 && y <= r/2) return true;
+
+  // 2. Треугольник (3 четверть)
+  if (x <= 0 && y <= 0 && (x + y) >= -r) return true;
+
+  // 3. Сектор (4 четверть)
+  if (x >= 0 && y <= 0 && (x*x + y*y) <= (r/2)*(r/2)) return true;
+
+  return false;
+};
+
+const syncData = async () => {
+  if (!navigator.onLine) {
+    isOffline.value = true;
+    return;
+  }
+  isOffline.value = false;
+
   try {
-    const res = await api.get('');
-    points.value = res.data;
+    const localPoints = await getAllPointsLocal();
+
+    const payload = localPoints.map(p => ({
+      externalId: p.externalId,
+      x: p.x,
+      y: p.y,
+      r: p.r,
+      result: p.result,
+      executionTime: p.executionTime || 0,
+      lamportTimestamp: p.lamportTimestamp || 0,
+      nodeId: p.nodeId
+    }));
+
+    const res = await api.post('/sync', payload);
+    const mergedPoints = res.data;
+
+    await saveAllPointsLocal(mergedPoints);
+    points.value = mergedPoints;
+
+    let maxRemote = 0;
+    mergedPoints.forEach(p => {
+      const t = p.crdtMeta ? p.crdtMeta.lamport : 0;
+      if(t > maxRemote) maxRemote = t;
+    });
+    await incLamport(maxRemote);
+
     drawGraph();
   } catch (e) {
+    console.error("Sync error:", e);
     if (e.response && e.response.status === 401) logout();
   }
 };
 
-const submitPoint = async () => {
-  if (!isValid.value) return;
-  try {
-    const res = await api.post('', {
-      x: parseFloat(x.value.replace(',', '.')),
-      y: parseFloat(y.value.replace(',', '.')),
-      r: parseFloat(r.value.replace(',', '.'))
-    });
-    points.value.push(res.data);
-    drawGraph();
-  } catch (e) {
-    alert("Ошибка сервера");
-  }
+const addPointInternal = async (xVal, yVal, rVal) => {
+  const timestamp = await incLamport();
+  const isHit = checkAreaClient(xVal, yVal, rVal);
+
+  const newPoint = {
+    externalId: uuidv4(),
+    x: xVal,
+    y: yVal,
+    r: rVal,
+    result: isHit,
+    executedAt: new Date().toISOString(),
+    executionTime: 0,
+    lamportTimestamp: timestamp,
+    nodeId: nodeId,
+    crdtMeta: { lamport: timestamp, nodeId: nodeId }
+  };
+
+  await savePointLocal(newPoint);
+  points.value.push(newPoint);
+  drawGraph();
+
+  await syncData();
 };
 
-const logout = () => {
+const submitPoint = async () => {
+  if (!isValid.value) return;
+  const X_val = parseFloat(x.value.replace(',', '.'));
+  const Y_val = parseFloat(y.value.replace(',', '.'));
+  const R_val = parseFloat(r.value.replace(',', '.'));
+
+  await addPointInternal(X_val, Y_val, R_val);
+};
+
+const handleGraphClick = async (event) => {
+  const R_val = parseFloat(r.value.replace(',', '.'));
+  if (!R_val || R_val <= 0) {
+    alert("Введите корректный радиус R > 0 перед кликом!");
+    return;
+  }
+
+  const rect = graphCanvas.value.getBoundingClientRect();
+  const clickX = event.clientX - rect.left;
+  const clickY = event.clientY - rect.top;
+  const width = graphCanvas.value.width;
+  const height = graphCanvas.value.height;
+  const scale = (width / 2) / 6;
+
+  let graphX = (clickX - width/2) / scale;
+  let graphY = (height/2 - clickY) / scale;
+
+  graphX = parseFloat(graphX.toFixed(2));
+  graphY = parseFloat(graphY.toFixed(2));
+
+  graphX = Math.min(5, Math.max(-3, graphX));
+  graphY = Math.min(3, Math.max(-5, graphY));
+
+  await addPointInternal(graphX, graphY, R_val);
+};
+
+const logout = async () => {
   localStorage.removeItem('auth_token');
+  localStorage.removeItem('username');
+
+  try {
+    await clearLocalDB();
+  } catch(e) { console.error(e); }
+
+  points.value = [];
   router.push('/');
 };
 
@@ -172,7 +275,6 @@ const drawGraph = () => {
   const width = canvas.width;
   const height = canvas.height;
   const R_val = parseFloat(r.value.replace(',', '.'));
-
   const validR = !isNaN(R_val) && R_val > 0;
 
   ctx.clearRect(0, 0, width, height);
@@ -187,8 +289,10 @@ const drawGraph = () => {
     const rPx = R_val * scale;
     const rHalfPx = (R_val / 2) * scale;
 
+    // 2 четв: Прямоугольник
     ctx.fillRect(centerX - rPx, centerY - rHalfPx, rPx, rHalfPx);
 
+    // 3 четв: Треугольник
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
     ctx.lineTo(centerX - rPx, centerY);
@@ -196,7 +300,7 @@ const drawGraph = () => {
     ctx.closePath();
     ctx.fill();
 
-
+    // 4 четв: Сектор
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
     ctx.arc(centerX, centerY, rHalfPx, 0, Math.PI / 2, false);
@@ -208,8 +312,8 @@ const drawGraph = () => {
 
   ctx.strokeStyle = '#000';
   ctx.beginPath();
-  ctx.moveTo(0, height/2); ctx.lineTo(width, height/2); // X
-  ctx.moveTo(width/2, 0); ctx.lineTo(width/2, height); // Y
+  ctx.moveTo(0, height/2); ctx.lineTo(width, height/2);
+  ctx.moveTo(width/2, 0); ctx.lineTo(width/2, height);
   ctx.stroke();
 
   ctx.font = "12px Arial";
@@ -219,11 +323,8 @@ const drawGraph = () => {
 
   points.value.forEach(p => {
     const scale = (width / 2) / 6;
-
-    const clampedX = Math.min(5, Math.max(-3, p.x));
-    const clampedY = Math.min(3, Math.max(-5, p.y));
-    const pX = width/2 + clampedX * scale;
-    const pY = height/2 - clampedY * scale;
+    const pX = width/2 + p.x * scale;
+    const pY = height/2 - p.y * scale;
 
     ctx.fillStyle = p.result ? '#28a745' : '#dc3545';
     ctx.beginPath();
@@ -232,45 +333,13 @@ const drawGraph = () => {
   });
 };
 
-const handleGraphClick = async (event) => {
-  const R = parseFloat(r.value.replace(',', '.'));
-  if (!R || R <= 0) {
-    alert("Введите корректный радиус R > 0 перед кликом!");
-    return;
-  }
-
-  const rect = graphCanvas.value.getBoundingClientRect();
-  const clickX = event.clientX - rect.left;
-  const clickY = event.clientY - rect.top;
-
-  const width = graphCanvas.value.width;
-  const height = graphCanvas.value.height;
-  const scale = (width / 2) / 6;
-
-  let graphX = (clickX - width/2) / scale;
-  let graphY = (height/2 - clickY) / scale;
-
-  graphX = Math.min(5, Math.max(-3, graphX));
-  graphY = Math.min(3, Math.max(-5, graphY));
-
-  graphX = graphX.toFixed(2);
-  graphY = graphY.toFixed(2);
-
-  try {
-    const res = await api.post('', {
-      x: parseFloat(graphX),
-      y: parseFloat(graphY),
-      r: R
-    });
-    points.value.push(res.data);
-    drawGraph();
-  } catch (e) {
-    alert("Ошибка при проверке клика");
-  }
-};
-
-onMounted(() => {
-  loadPoints();
+onMounted(async () => {
+  points.value = await getAllPointsLocal();
   drawGraph();
+
+  await syncData();
+
+  window.addEventListener('online', syncData);
+  window.addEventListener('offline', () => isOffline.value = true);
 });
 </script>
