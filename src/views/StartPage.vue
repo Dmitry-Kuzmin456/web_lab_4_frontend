@@ -65,6 +65,16 @@
         <p v-if="error" class="error-messages">{{ error }}</p>
       </div>
     </main>
+
+    <div v-if="showSuccessModal" class="notification-container" style="display: flex;">
+      <div class="notification">
+        <div class="notification-message">
+          Регистрация прошла успешно!<br>Теперь вы можете войти в систему.
+        </div>
+        <button @click="closeModal" class="notification-close">OK</button>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -79,12 +89,17 @@ import duck2 from '../assets/img/duck_without_background_2.png';
 const username = ref('');
 const password = ref('');
 const error = ref('');
+const showSuccessModal = ref(false); // Управление видимостью окна
 const router = useRouter();
 
 const api = axios.create({ baseURL: 'http://localhost:8080/api/auth' });
 
 const clearError = () => {
   error.value = '';
+};
+
+const closeModal = () => {
+  showSuccessModal.value = false;
 };
 
 const login = async () => {
@@ -107,7 +122,7 @@ const login = async () => {
     if (e.response && e.response.status === 401) {
       error.value = "Неверный логин или пароль";
     } else if (e.response && e.response.status === 400) {
-      error.value = "Некорректные данные (пустые поля)";
+      error.value = "Некорректные данные";
     } else {
       error.value = "Ошибка сервера. Попробуйте позже.";
     }
@@ -133,11 +148,12 @@ const register = async () => {
   try {
     await api.post('/register', { username: username.value, password: password.value });
 
-    alert("Регистрация успешна! Теперь вы можете войти.");
     error.value = "";
+    showSuccessModal.value = true;
+
   } catch (e) {
     if (e.response && e.response.status === 400) {
-      error.value = e.response.data || "Ошибка регистрации (возможно, логин занят)";
+      error.value = e.response.data || "Пользователь с таким именем уже существует";
     } else {
       error.value = "Ошибка соединения с сервером";
     }
