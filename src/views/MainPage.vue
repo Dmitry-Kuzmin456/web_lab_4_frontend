@@ -60,8 +60,16 @@
           </td>
 
           <td class="graph-panel">
-            <div class="canvas-container" @click="handleGraphClick">
+            <!-- Добавлен position: relative для позиционирования уведомления внутри -->
+            <div class="canvas-container" @click="handleGraphClick" style="position: relative;">
               <canvas ref="graphCanvas" width="400" height="400" id="graph-canvas"></canvas>
+
+              <!-- НОВОЕ: Всплывающее уведомление вместо alert -->
+              <transition name="fade">
+                <div v-if="toast.show" class="graph-toast">
+                  {{ toast.message }}
+                </div>
+              </transition>
             </div>
           </td>
         </tr>
@@ -117,12 +125,26 @@ const points = ref([]);
 const errors = ref({ x: '', y: '', r: '' });
 const graphCanvas = ref(null);
 
+// НОВОЕ: Состояние для всплывающего уведомления
+const toast = ref({
+  show: false,
+  message: ''
+});
+
 const isOffline = ref(!navigator.onLine);
 
 const api = axios.create({
   baseURL: 'http://localhost:8080/api/points',
   headers: { 'Authorization': 'Basic ' + localStorage.getItem('auth_token') }
 });
+
+// НОВОЕ: Функция для показа уведомления
+const showErrorToast = (message) => {
+  toast.value = { show: true, message };
+  setTimeout(() => {
+    toast.value.show = false;
+  }, 3000); // Скрыть через 3 секунды
+};
 
 const validateNumber = (val, min, max) => {
   const num = parseFloat(val.replace(',', '.'));
@@ -230,10 +252,15 @@ const submitPoint = async () => {
   await addPointInternal(X_val, Y_val, R_val);
 };
 
+// ИЗМЕНЕНО: Обработка клика теперь использует showErrorToast вместо alert
 const handleGraphClick = async (event) => {
   const R_val = parseFloat(r.value.replace(',', '.'));
+
   if (!R_val || R_val <= 0) {
-    alert("Введите корректный радиус R > 0 перед кликом!");
+    // ВМЕСТО ALERT
+    showErrorToast("Пожалуйста, введите корректный радиус R > 0 для проверки точки!");
+    // Опционально подсветим ошибку
+    errors.value.r = "Введите R > 0";
     return;
   }
 
